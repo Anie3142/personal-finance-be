@@ -82,7 +82,7 @@ module "app" {
 
   # Service Discovery
   enable_service_discovery = true
-  cloudmap_namespace_id    = data.terraform_remote_state.network.outputs.cloudmap_namespace_id
+  cloudmap_namespace_id    = data.terraform_remote_state.network.outputs.service_discovery_namespace_id
 
   # Environment
   environment = {
