@@ -119,9 +119,9 @@ variable "app_name" {
 }
 
 variable "hostname" {
-  description = "Public hostname for the app"
+  description = "Public hostname for the app (API subdomain)"
   type        = string
-  default     = "personal-finance.namelesscompany.cc"  # <-- CHANGE THIS
+  default     = "api.personal-finance.namelesscompany.cc"  # Backend API endpoint
 }
 
 variable "image_tag" {
