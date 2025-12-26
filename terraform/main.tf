@@ -9,8 +9,8 @@ terraform {
 
   # Backend configuration - CHANGE for your app
   backend "s3" {
-    bucket         = "nameless-terraform-state-911027631608"
-    key            = "apps/personal-finance/terraform.tfstate"  # <-- CHANGE THIS
+    bucket         = "nameless-terraform-state"
+    key            = "apps/personal-finance/terraform.tfstate"
     region         = "us-east-1"
     dynamodb_table = "nameless-terraform-locks"
     encrypt        = true
@@ -34,7 +34,7 @@ provider "aws" {
 data "terraform_remote_state" "network" {
   backend = "s3"
   config = {
-    bucket = "nameless-terraform-state-911027631608"
+    bucket = "nameless-terraform-state"
     key    = "live/10-network/terraform.tfstate"
     region = "us-east-1"
   }
@@ -43,7 +43,7 @@ data "terraform_remote_state" "network" {
 data "terraform_remote_state" "ecs" {
   backend = "s3"
   config = {
-    bucket = "nameless-terraform-state-911027631608"
+    bucket = "nameless-terraform-state"
     key    = "live/20-ecs/terraform.tfstate"
     region = "us-east-1"
   }
@@ -52,7 +52,7 @@ data "terraform_remote_state" "ecs" {
 data "terraform_remote_state" "traefik" {
   backend = "s3"
   config = {
-    bucket = "nameless-terraform-state-911027631608"
+    bucket = "nameless-terraform-state"
     key    = "live/27-traefik/terraform.tfstate"
     region = "us-east-1"
   }
