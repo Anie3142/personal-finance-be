@@ -40,23 +40,45 @@ pipeline {
         stage('Run Tests') {
             steps {
                 script {
-                    echo "🧪 Running tests..."
+                    echo "🧪 Running tests with PostgreSQL database..."
 
-                    // Test 1: Basic Python/Django import (bypass entrypoint to skip migrations)
+                    // Start only the PostgreSQL database from docker-compose
+                    sh "docker-compose up -d db"
+                    
+                    // Wait for database to be healthy
+                    echo "⏳ Waiting for PostgreSQL to be ready..."
                     sh """
-                        docker run --rm --entrypoint python ${env.FULL_IMAGE} -c "
+                        timeout 60 bash -c 'until docker-compose exec -T db pg_isready -U nairatrack; do sleep 2; done'
+                    """
+
+                    // Test 1: Basic Python/Django import
+                    sh """
+                        docker run --rm --network nairatrack-network \
+                            -e DJANGO_SETTINGS_MODULE=config.settings.dev \
+                            -e DB_HOST=nairatrack-db \
+                            -e DB_NAME=nairatrack \
+                            -e DB_USER=nairatrack \
+                            -e DB_PASSWORD=nairatrack \
+                            ${env.FULL_IMAGE} python -c "
 import sys
 print('Python version:', sys.version)
 print('Django import test...')
 import django
 print('Django version:', django.VERSION)
+print('✅ Django import test passed!')
 "
                     """
 
-                    // Test 2: Validate Django app can start (catches syntax errors!)
-                    echo "🔍 Validating Django app syntax..."
+                    // Test 2: Validate Django app can start and URL configuration
+                    echo "🔍 Validating Django app and URL configuration..."
                     sh """
-                        docker run --rm --entrypoint python -e DJANGO_SETTINGS_MODULE=config.settings.dev ${env.FULL_IMAGE} -c "
+                        docker run --rm --network nairatrack-network \
+                            -e DJANGO_SETTINGS_MODULE=config.settings.dev \
+                            -e DB_HOST=nairatrack-db \
+                            -e DB_NAME=nairatrack \
+                            -e DB_USER=nairatrack \
+                            -e DB_PASSWORD=nairatrack \
+                            ${env.FULL_IMAGE} python -c "
 import django
 django.setup()
 from django.urls import get_resolver
@@ -66,6 +88,12 @@ print('✅ Django URL configuration validated!')
                     """
 
                     echo "✅ All tests passed!"
+                }
+            }
+            post {
+                always {
+                    // Clean up test database
+                    sh "docker-compose down -v || true"
                 }
             }
         }
