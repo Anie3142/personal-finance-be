@@ -337,14 +337,23 @@ class RecurringListView(views.APIView):
         return Response({'recurring': RecurringSerializer(recurring, many=True).data})
     
     def post(self, request):
+        # Handle empty strings as None for optional fields
+        category_id = request.data.get('category_id')
+        account_id = request.data.get('account_id')
+        if category_id == '' or category_id == 'undefined':
+            category_id = None
+        if account_id == '' or account_id == 'undefined':
+            account_id = None
+            
         rec = RecurringTransaction.objects.create(
             user=request.user,
             name=request.data['name'],
+            icon=request.data.get('icon', '📦'),
             amount=request.data['amount'],
             frequency=request.data['frequency'],
-            next_date=request.data['start_date'],
-            category_id=request.data.get('category_id'),
-            account_id=request.data.get('account_id'),
+            next_date=request.data.get('start_date') or request.data.get('next_date'),
+            category_id=category_id,
+            account_id=account_id,
             reminder_days=request.data.get('reminder_days')
         )
         return Response(RecurringSerializer(rec).data, status=201)

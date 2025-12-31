@@ -86,8 +86,16 @@ module "app" {
 
   # Environment
   environment = {
-    DJANGO_SETTINGS_MODULE = "config.settings.prod"
-    ALLOWED_HOSTS          = var.hostname
+    DJANGO_SETTINGS_MODULE      = "config.settings.prod"
+    ALLOWED_HOSTS               = var.hostname
+    # Tell Django to trust X-Forwarded-Proto header from Cloudflare/Traefik
+    SECURE_PROXY_SSL_HEADER_NAME  = "HTTP_X_FORWARDED_PROTO"
+    SECURE_PROXY_SSL_HEADER_VALUE = "https"
+    # Disable Django's SSL redirect since Cloudflare handles HTTPS
+    SECURE_SSL_REDIRECT         = "False"
+    # Trust proxy headers
+    USE_X_FORWARDED_HOST        = "True"
+    USE_X_FORWARDED_PORT        = "True"
   }
 
   # Secrets - add your SSM parameters here
@@ -121,7 +129,7 @@ variable "app_name" {
 variable "hostname" {
   description = "Public hostname for the app (API subdomain)"
   type        = string
-  default     = "api.personal-finance.namelesscompany.cc"  # Backend API endpoint
+  default     = "personal-finance-api.namelesscompany.cc"  # Backend API endpoint (single-level subdomain for Cloudflare SSL)
 }
 
 variable "image_tag" {

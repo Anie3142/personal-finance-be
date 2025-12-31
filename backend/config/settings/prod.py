@@ -9,7 +9,9 @@ DATABASES = {
     'default': dj_database_url.config(default=config('DATABASE_URL', default=''))
 }
 
-SECURE_SSL_REDIRECT = True
+# Disable SSL redirect since Cloudflare handles HTTPS termination
+# The traffic from Cloudflare tunnel -> Traefik -> Django is HTTP internally
+SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=False, cast=bool)
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
