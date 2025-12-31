@@ -1,106 +1,162 @@
 // =============================================================================
-// Backend App CI/CD Pipeline
+// NairaTrack Backend CI/CD Pipeline
 // =============================================================================
-// Push-to-deploy: main branch → build → ECR → terraform → ECS
+// Push-to-deploy: main branch → build → ECR → ECS
+// Uses Cloudflare Tunnel for exposure (no ALB)
 // =============================================================================
 
 pipeline {
     agent any
-    
+
     environment {
         AWS_REGION = 'us-east-1'
-        AWS_ACCOUNT_ID = '911027631608'
-        ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-        APP_NAME = 'personal-finance'  // <-- CHANGE THIS: your-app-name
-        IMAGE_TAG = "${GIT_COMMIT.take(7)}"
+        ECR_REPO = '911027631608.dkr.ecr.us-east-1.amazonaws.com/personal-finance'
+        ECS_CLUSTER = 'nameless-cluster'
+        ECS_SERVICE = 'nairatrack-api'
+        TASK_FAMILY = 'nairatrack-api'
     }
-    
+
     stages {
         stage('Checkout') {
             steps {
                 checkout scm
+                echo "✅ Code checked out successfully"
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
                 script {
-                    env.GIT_SHA = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+                    def gitHash = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+                    env.IMAGE_TAG = gitHash
+                    env.FULL_IMAGE = "${ECR_REPO}:${gitHash}"
+
+                    echo "🔨 Building image: ${env.FULL_IMAGE}"
+                    sh "docker build -t ${env.FULL_IMAGE} -t ${ECR_REPO}:latest ."
                 }
             }
         }
-        
-        stage('Test') {
+
+        stage('Run Tests') {
             steps {
-                sh '''
-                    echo "Running tests..."
-                    # Add your test commands here
-                    # python -m pytest backend/tests/ -v
-                '''
+                script {
+                    echo "🧪 Running tests..."
+
+                    // Test 1: Basic Python/Django import
+                    sh """
+                        docker run --rm ${env.FULL_IMAGE} python -c "
+import sys
+print('Python version:', sys.version)
+print('Django import test...')
+import django
+print('Django version:', django.VERSION)
+"
+                    """
+
+                    // Test 2: Validate Django app can start (catches syntax errors!)
+                    echo "🔍 Validating Django app syntax..."
+                    sh """
+                        docker run --rm ${env.FULL_IMAGE} python -c "
+import os
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.dev')
+import django
+django.setup()
+from django.urls import get_resolver
+get_resolver()
+print('✅ Django URL configuration validated!')
+"
+                    """
+
+                    echo "✅ All tests passed!"
+                }
             }
         }
-        
-        stage('Build Image') {
-            steps {
-                sh '''
-                    docker build --platform linux/arm64 \
-                        -t ${ECR_REGISTRY}/${APP_NAME}:${GIT_SHA} \
-                        -t ${ECR_REGISTRY}/${APP_NAME}:latest \
-                        .
-                '''
-            }
-        }
-        
+
         stage('Push to ECR') {
             steps {
-                sh '''
-                    aws ecr get-login-password --region ${AWS_REGION} | \
-                        docker login --username AWS --password-stdin ${ECR_REGISTRY}
-                    
-                    docker push ${ECR_REGISTRY}/${APP_NAME}:${GIT_SHA}
-                    docker push ${ECR_REGISTRY}/${APP_NAME}:latest
-                '''
-            }
-        }
-        
-        stage('Deploy via Terraform') {
-            steps {
-                dir('terraform') {
-                    sh '''
-                        terraform init -input=false
-                        terraform plan -var="image_tag=${GIT_SHA}" -out=tfplan
-                        terraform apply -auto-approve tfplan
-                    '''
+                script {
+                    echo "📤 Pushing to ECR..."
+                    sh """
+                        aws ecr get-login-password --region ${AWS_REGION} | \
+                            docker login --username AWS --password-stdin ${ECR_REPO}
+
+                        docker push ${env.FULL_IMAGE}
+                        docker push ${ECR_REPO}:latest
+                    """
+                    echo "✅ Image pushed: ${env.FULL_IMAGE}"
                 }
             }
         }
-        
-        stage('Wait for Deployment') {
+
+        stage('Deploy to ECS') {
             steps {
-                sh '''
-                    echo "Waiting for ECS deployment to stabilize..."
-                    aws ecs wait services-stable \
-                        --cluster nameless-cluster \
-                        --services ${APP_NAME} \
-                        --region ${AWS_REGION}
-                    echo "Deployment complete!"
-                '''
+                script {
+                    echo "🚀 Deploying to ECS..."
+
+                    sh """
+                        aws ecs update-service \
+                            --cluster ${ECS_CLUSTER} \
+                            --service ${ECS_SERVICE} \
+                            --force-new-deployment \
+                            --region ${AWS_REGION}
+                    """
+
+                    echo "✅ ECS service update initiated!"
+                    echo "📍 Access via: https://api.personal-finance.namelesscompany.cc"
+                    echo "📦 Image deployed: ${env.FULL_IMAGE} (also tagged as :latest)"
+                }
             }
         }
-        
-        stage('Smoke Test') {
+
+        stage('Verify Deployment') {
             steps {
-                sh '''
-                    echo "Running smoke test..."
-                    # Replace with your app hostname
-                    # curl -f https://${APP_NAME}.namelesscompany.cc/health || exit 1
-                    echo "Smoke test passed!"
-                '''
+                script {
+                    echo "🔍 Waiting for ECS deployment to complete (this may take 2-3 minutes)..."
+
+                    sh """
+                        aws ecs wait services-stable \
+                            --cluster ${ECS_CLUSTER} \
+                            --services ${ECS_SERVICE} \
+                            --region ${AWS_REGION}
+                    """
+
+                    echo "✅ ECS service deployment complete and stable!"
+
+                    def status = sh(
+                        script: """
+                            aws ecs describe-services \
+                                --cluster ${ECS_CLUSTER} \
+                                --services ${ECS_SERVICE} \
+                                --region ${AWS_REGION} \
+                                --query 'services[0].{running:runningCount,desired:desiredCount,deployments:length(deployments)}' \
+                                --output json
+                        """,
+                        returnStdout: true
+                    ).trim()
+
+                    def statusMap = readJSON text: status
+                    echo "Final status: running=${statusMap.running}, desired=${statusMap.desired}, deployments=${statusMap.deployments}"
+                }
             }
         }
     }
-    
+
     post {
         success {
-            echo "✅ Deployment successful: ${APP_NAME}:${GIT_SHA}"
+            echo """
+╔═══════════════════════════════════════════════════════════════════╗
+║  🎉 DEPLOYMENT SUCCESSFUL!                                         ║
+║                                                                     ║
+║  Image: ${env.FULL_IMAGE}                                          ║
+║  Service: ${ECS_SERVICE}                                           ║
+║  Cluster: ${ECS_CLUSTER}                                           ║
+║                                                                     ║
+║  Access: https://api.personal-finance.namelesscompany.cc           ║
+╚═══════════════════════════════════════════════════════════════════╝
+"""
         }
         failure {
-            echo "❌ Deployment failed!"
+            echo "❌ Pipeline failed! Check the logs for details."
         }
         cleanup {
             sh 'docker system prune -f || true'
