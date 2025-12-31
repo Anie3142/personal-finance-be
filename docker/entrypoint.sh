@@ -1,11 +1,11 @@
 #!/bin/bash
 set -e
 
-echo "Running migrations..."
+# Run migrations
 python manage.py migrate --noinput
 
-echo "Collecting static files..."
-python manage.py collectstatic --noinput || true
+# Collect static files
+python manage.py collectstatic --noinput
 
-echo "Starting application..."
+# Start the application
 exec "$@"
