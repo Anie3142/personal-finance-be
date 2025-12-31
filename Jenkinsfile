@@ -12,8 +12,8 @@ pipeline {
         AWS_REGION = 'us-east-1'
         ECR_REPO = '911027631608.dkr.ecr.us-east-1.amazonaws.com/personal-finance'
         ECS_CLUSTER = 'nameless-cluster'
-        ECS_SERVICE = 'nairatrack-api'
-        TASK_FAMILY = 'nairatrack-api'
+        ECS_SERVICE = 'personal-finance'
+        TASK_FAMILY = 'personal-finance'
     }
 
     stages {
