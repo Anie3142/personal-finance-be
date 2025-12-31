@@ -147,9 +147,11 @@ variable "desired_count" {
 }
 
 variable "secrets" {
-  description = "SSM secrets map"
+  description = "SSM secrets map (env var name -> SSM parameter ARN)"
   type        = map(string)
-  default     = {}
+  default     = {
+    DATABASE_URL = "arn:aws:ssm:us-east-1:911027631608:parameter/nameless/personal-finance/database-url"
+  }
 }
 
 # -----------------------------------------------------------------------------
