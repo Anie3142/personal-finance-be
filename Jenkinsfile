@@ -42,9 +42,9 @@ pipeline {
                 script {
                     echo "🧪 Running tests..."
 
-                    // Test 1: Basic Python/Django import
+                    // Test 1: Basic Python/Django import (bypass entrypoint to skip migrations)
                     sh """
-                        docker run --rm ${env.FULL_IMAGE} python -c "
+                        docker run --rm --entrypoint python ${env.FULL_IMAGE} -c "
 import sys
 print('Python version:', sys.version)
 print('Django import test...')
@@ -56,9 +56,7 @@ print('Django version:', django.VERSION)
                     // Test 2: Validate Django app can start (catches syntax errors!)
                     echo "🔍 Validating Django app syntax..."
                     sh """
-                        docker run --rm ${env.FULL_IMAGE} python -c "
-import os
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.dev')
+                        docker run --rm --entrypoint python -e DJANGO_SETTINGS_MODULE=config.settings.dev ${env.FULL_IMAGE} -c "
 import django
 django.setup()
 from django.urls import get_resolver
