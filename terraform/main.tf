@@ -135,7 +135,7 @@ variable "hostname" {
 variable "image_tag" {
   description = "Docker image tag (set by CI/CD)"
   type        = string
-  default     = "latest"
+  default     = "v5-amd64"
 }
 
 variable "ecr_registry" {

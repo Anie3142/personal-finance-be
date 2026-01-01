@@ -58,6 +58,7 @@ services:
       - AUTH0_ISSUER_BASE_URL=https://dev-54nxe440ro81hlb6.us.auth0.com
       - AUTH0_CLIENT_ID=SM3sFfXc1ntYVIeWY1g16pVnuSsYUI7k
       - AUTH0_CLIENT_SECRET=0jonYEcS7a9zw1L8eqmeQ_d1xP46qLjWcM7BcxhY1npnn3ka14VK8nRfKXE_s1R_
+      - AUTH0_AUDIENCE=https://api.personal-finance.namelesscompany.cc
       - NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1
     depends_on:
       - api
