@@ -215,8 +215,61 @@ class CategoryRuleDetailView(views.APIView):
 # Budget Views
 class BudgetListView(views.APIView):
     def get(self, request):
-        budgets = Budget.objects.filter(user=request.user).select_related('category')
-        return Response({'budgets': BudgetSerializer(budgets, many=True).data})
+        from django.db.models import Subquery, OuterRef, DecimalField, Value
+        from django.db.models.functions import Coalesce
+        
+        # Get current month date range
+        today = datetime.now().date()
+        start_of_month = today.replace(day=1)
+        
+        # Calculate spent amount for each budget's category
+        spent_subquery = Transaction.objects.filter(
+            user=request.user,
+            category_id=OuterRef('category_id'),
+            type='debit',
+            date__gte=start_of_month,
+            date__lte=today
+        ).values('category_id').annotate(
+            total=Sum('amount')
+        ).values('total')
+        
+        budgets = Budget.objects.filter(user=request.user).select_related('category').annotate(
+            spent=Coalesce(Subquery(spent_subquery), Value(0), output_field=DecimalField()),
+        )
+        
+        # Manually calculate remaining, percentage, status for each budget
+        budget_data = []
+        for budget in budgets:
+            spent = float(budget.spent or 0)
+            amount = float(budget.amount or 1)
+            remaining = amount - spent
+            percentage = (spent / amount * 100) if amount > 0 else 0
+            
+            if percentage >= 100:
+                status = 'over'
+            elif percentage >= 90:
+                status = 'critical'
+            elif percentage >= 70:
+                status = 'warning'
+            else:
+                status = 'on_track'
+            
+            budget_data.append({
+                'id': str(budget.id),
+                'category_id': str(budget.category_id) if budget.category_id else None,
+                'category_name': budget.category.name if budget.category else None,
+                'category_icon': budget.category.icon if budget.category else None,
+                'category_color': budget.category.color if budget.category else None,
+                'amount': float(budget.amount),
+                'period': budget.period,
+                'spent': spent,
+                'remaining': remaining,
+                'percentage': round(percentage, 1),
+                'status': status,
+                'rollover': budget.rollover,
+            })
+        
+        return Response({'budgets': budget_data})
     
     def post(self, request):
         budget = Budget.objects.create(
@@ -432,6 +485,44 @@ class NetWorthView(views.APIView):
 class SpendingTrendsView(views.APIView):
     def get(self, request):
         return Response({'trends': []})
+
+
+class CashFlowView(views.APIView):
+    """Cash flow data for the last 6 months showing income vs expenses"""
+    def get(self, request):
+        from dateutil.relativedelta import relativedelta
+        
+        today = datetime.now().date()
+        cash_flow_data = []
+        
+        # Get last 6 months of data
+        for i in range(5, -1, -1):  # 5, 4, 3, 2, 1, 0 (oldest to newest)
+            month_date = today - relativedelta(months=i)
+            month_start = month_date.replace(day=1)
+            
+            # Get end of month
+            if month_date.month == 12:
+                month_end = month_date.replace(year=month_date.year + 1, month=1, day=1) - timedelta(days=1)
+            else:
+                month_end = month_date.replace(month=month_date.month + 1, day=1) - timedelta(days=1)
+            
+            # Query transactions for this month
+            txns = Transaction.objects.filter(
+                user=request.user,
+                date__gte=month_start,
+                date__lte=month_end
+            )
+            
+            income = txns.filter(type='credit').aggregate(total=Sum('amount'))['total'] or 0
+            expenses = txns.filter(type='debit').aggregate(total=Sum('amount'))['total'] or 0
+            
+            cash_flow_data.append({
+                'month': month_date.strftime('%b'),  # e.g., "Jan", "Feb"
+                'income': float(income),
+                'expenses': float(expenses),
+            })
+        
+        return Response({'cash_flow': cash_flow_data})
 
 
 # Insight Views

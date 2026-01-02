@@ -47,6 +47,7 @@ urlpatterns = [
     path('reports/monthly', views.MonthlyReportView.as_view()),
     path('reports/net-worth', views.NetWorthView.as_view()),
     path('reports/spending-trends', views.SpendingTrendsView.as_view()),
+    path('reports/cash-flow', views.CashFlowView.as_view()),
     
     # Insights
     path('insights', views.InsightListView.as_view()),
