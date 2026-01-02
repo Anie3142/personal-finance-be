@@ -104,7 +104,7 @@ REST_FRAMEWORK = {
 
 # Auth0 Configuration
 AUTH0_DOMAIN = config('AUTH0_DOMAIN', default='dev-54nxe440ro81hlb6.us.auth0.com')
-AUTH0_API_AUDIENCE = config('AUTH0_API_AUDIENCE', default='https://api.personal-finance.namelesscompany.cc')
+AUTH0_API_AUDIENCE = config('AUTH0_API_AUDIENCE', default='https://personal-finance-api.namelesscompany.cc')
 AUTH0_ALGORITHMS = ['RS256']
 
 # CORS
