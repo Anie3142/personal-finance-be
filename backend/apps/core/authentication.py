@@ -79,6 +79,25 @@ class Auth0JWTAuthentication(authentication.BaseAuthentication):
             if not created and email and user.email != email:
                 user.email = email
                 user.save(update_fields=['email'])
+
+            if created and settings.DEBUG:
+                # Seed data for new users ONLY IN DEBUG/DEV MODE
+                try:
+                    from apps.core.management.commands.seed_data import Command as SeedCommand
+                    cmd = SeedCommand()
+                    cmd.stdout = open('/dev/null', 'w')  # Verify stdout exists
+                    
+                    # Create system categories if they don't exist
+                    cmd.create_categories(user)
+                    
+                    # Create existing data
+                    accounts = cmd.create_accounts(user)
+                    cmd.create_transactions(user, accounts)
+                    cmd.create_budgets(user)
+                    cmd.create_goals(user)
+                    cmd.create_recurring(user, accounts)
+                except Exception as e:
+                    print(f"Failed to seed data for user {user.id}: {str(e)}")
             
             return (user, token)
             

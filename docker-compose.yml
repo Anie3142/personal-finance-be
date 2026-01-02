@@ -33,8 +33,9 @@ services:
       - DB_PASSWORD=nairatrack
       - SECRET_KEY=dev-secret-key-change-in-production
       - AUTH0_DOMAIN=dev-54nxe440ro81hlb6.us.auth0.com
-      - AUTH0_API_AUDIENCE=https://api.personal-finance.namelesscompany.cc
-      - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://frontend:3000
+      - AUTH0_API_AUDIENCE=https://personal-finance-api.namelesscompany.cc
+      - CORS_ALLOWED_ORIGINS=http://localhost:3000
+      - DEV_AUTH_BYPASS=false
     depends_on:
       db:
         condition: service_healthy
@@ -53,12 +54,11 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - AUTH0_SECRET=2791dad30562134a65fb474e33da3ae56c3f149d140b4570ef1d491f9fa058e6
-      - AUTH0_BASE_URL=http://localhost:3000
-      - AUTH0_ISSUER_BASE_URL=https://dev-54nxe440ro81hlb6.us.auth0.com
-      - AUTH0_CLIENT_ID=SM3sFfXc1ntYVIeWY1g16pVnuSsYUI7k
-      - AUTH0_CLIENT_SECRET=0jonYEcS7a9zw1L8eqmeQ_d1xP46qLjWcM7BcxhY1npnn3ka14VK8nRfKXE_s1R_
-      - AUTH0_AUDIENCE=https://api.personal-finance.namelesscompany.cc
+      # Client-side Auth0 variables (Required for @auth0/auth0-react)
+      - NEXT_PUBLIC_AUTH0_DOMAIN=dev-54nxe440ro81hlb6.us.auth0.com
+      - NEXT_PUBLIC_AUTH0_CLIENT_ID=SM3sFfXc1ntYVIeWY1g16pVnuSsYUI7k
+      - NEXT_PUBLIC_AUTH0_AUDIENCE=https://personal-finance-api.namelesscompany.cc
+      - NEXT_PUBLIC_AUTH0_REDIRECT_URI=http://localhost:3000
       - NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1
     depends_on:
       - api
