@@ -140,6 +140,7 @@ class RecurringTransaction(models.Model):
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True)
     account = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True)
     status = models.CharField(max_length=20, default='active')
+    type = models.CharField(max_length=20, default='bill')
     reminder_days = models.IntegerField(null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     

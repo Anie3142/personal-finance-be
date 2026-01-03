@@ -407,7 +407,8 @@ class RecurringListView(views.APIView):
             next_date=request.data.get('start_date') or request.data.get('next_date'),
             category_id=category_id,
             account_id=account_id,
-            reminder_days=request.data.get('reminder_days')
+            reminder_days=request.data.get('reminder_days'),
+            type=request.data.get('type', 'bill')
         )
         return Response(RecurringSerializer(rec).data, status=201)
 
@@ -416,7 +417,7 @@ class RecurringDetailView(views.APIView):
     def patch(self, request, pk):
         try:
             rec = RecurringTransaction.objects.get(pk=pk, user=request.user)
-            for field in ['name', 'amount', 'frequency', 'status', 'reminder_days']:
+            for field in ['name', 'amount', 'frequency', 'status', 'reminder_days', 'type']:
                 if field in request.data:
                     setattr(rec, field, request.data[field])
             rec.save()
@@ -474,11 +475,59 @@ class MonthlyReportView(views.APIView):
 class NetWorthView(views.APIView):
     def get(self, request):
         accounts = Account.objects.filter(user=request.user)
-        net_worth = accounts.aggregate(total=Sum('balance'))['total'] or 0
+        current_net_worth = accounts.aggregate(total=Sum('balance'))['total'] or 0
+        current_net_worth = float(current_net_worth)
+        
+        # Calculate history for last 30 days
+        today = datetime.now().date()
+        data_points = []
+        
+        # We start from current balance and work backwards
+        running_balance = current_net_worth
+        
+        # Add today's point
+        data_points.append({
+            'date': today.isoformat(),
+            'net_worth': running_balance
+        })
+        
+        # Work backwards for 29 days
+        for i in range(1, 30):
+            day = today - timedelta(days=i)
+            # Find transactions for this specific day
+            day_txns = Transaction.objects.filter(
+                user=request.user,
+                date=day
+            )
+            
+            # Reverse the effect of transactions:
+            # - If we had income (credit), balance was LOWER before
+            # - If we had expense (debit), balance was HIGHER before
+            day_income = day_txns.filter(type='credit').aggregate(total=Sum('amount'))['total'] or 0
+            day_expense = day_txns.filter(type='debit').aggregate(total=Sum('amount'))['total'] or 0
+            
+            # Previous Balance = Current Balance - Income + Expense
+            running_balance = running_balance - float(day_income) + float(day_expense)
+            
+            data_points.append({
+                'date': day.isoformat(),
+                'net_worth': running_balance
+            })
+            
+        # Reverse to get chronological order
+        data_points.reverse()
+        
+        # Calculate percent change (30 days ago vs now)
+        start_balance = data_points[0]['net_worth']
+        if start_balance != 0:
+            change_percent = ((current_net_worth - start_balance) / start_balance) * 100
+        else:
+            change_percent = 100 if current_net_worth > 0 else 0
+            
         return Response({
-            'data_points': [{'date': datetime.now().isoformat(), 'net_worth': float(net_worth)}],
-            'current_net_worth': float(net_worth),
-            'change_percent': 0
+            'data_points': data_points,
+            'current_net_worth': current_net_worth,
+            'change_percent': round(change_percent, 1)
         })
 
 
@@ -492,35 +541,58 @@ class CashFlowView(views.APIView):
     def get(self, request):
         from dateutil.relativedelta import relativedelta
         
+        period = request.query_params.get('period', 'monthly')
         today = datetime.now().date()
         cash_flow_data = []
         
-        # Get last 6 months of data
-        for i in range(5, -1, -1):  # 5, 4, 3, 2, 1, 0 (oldest to newest)
-            month_date = today - relativedelta(months=i)
-            month_start = month_date.replace(day=1)
-            
-            # Get end of month
-            if month_date.month == 12:
-                month_end = month_date.replace(year=month_date.year + 1, month=1, day=1) - timedelta(days=1)
-            else:
-                month_end = month_date.replace(month=month_date.month + 1, day=1) - timedelta(days=1)
-            
-            # Query transactions for this month
-            txns = Transaction.objects.filter(
-                user=request.user,
-                date__gte=month_start,
-                date__lte=month_end
-            )
-            
-            income = txns.filter(type='credit').aggregate(total=Sum('amount'))['total'] or 0
-            expenses = txns.filter(type='debit').aggregate(total=Sum('amount'))['total'] or 0
-            
-            cash_flow_data.append({
-                'month': month_date.strftime('%b'),  # e.g., "Jan", "Feb"
-                'income': float(income),
-                'expenses': float(expenses),
-            })
+        if period == 'yearly':
+            # Last 5 years
+            for i in range(4, -1, -1):
+                year = today.year - i
+                start_date = datetime(year, 1, 1).date()
+                end_date = datetime(year, 12, 31).date()
+                
+                txns = Transaction.objects.filter(
+                    user=request.user,
+                    date__gte=start_date,
+                    date__lte=end_date
+                )
+                
+                income = txns.filter(type='credit').aggregate(total=Sum('amount'))['total'] or 0
+                expenses = txns.filter(type='debit').aggregate(total=Sum('amount'))['total'] or 0
+                
+                cash_flow_data.append({
+                    'month': str(year),
+                    'income': float(income),
+                    'expenses': float(expenses),
+                })
+        else:
+            # Last 6 months (default)
+            for i in range(5, -1, -1):  # 5, 4, 3, 2, 1, 0 (oldest to newest)
+                month_date = today - relativedelta(months=i)
+                month_start = month_date.replace(day=1)
+                
+                # Get end of month
+                if month_date.month == 12:
+                    month_end = month_date.replace(year=month_date.year + 1, month=1, day=1) - timedelta(days=1)
+                else:
+                    month_end = month_date.replace(month=month_date.month + 1, day=1) - timedelta(days=1)
+                
+                # Query transactions for this month
+                txns = Transaction.objects.filter(
+                    user=request.user,
+                    date__gte=month_start,
+                    date__lte=month_end
+                )
+                
+                income = txns.filter(type='credit').aggregate(total=Sum('amount'))['total'] or 0
+                expenses = txns.filter(type='debit').aggregate(total=Sum('amount'))['total'] or 0
+                
+                cash_flow_data.append({
+                    'month': month_date.strftime('%b'),
+                    'income': float(income),
+                    'expenses': float(expenses),
+                })
         
         return Response({'cash_flow': cash_flow_data})
 

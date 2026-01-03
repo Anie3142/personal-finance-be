@@ -76,7 +76,7 @@ class RecurringSerializer(serializers.ModelSerializer):
     class Meta:
         model = RecurringTransaction
         fields = ['id', 'name', 'icon', 'amount', 'frequency', 'next_date', 'category_id',
-                  'category_name', 'account_id', 'status', 'reminder_days']
+                  'category_name', 'account_id', 'status', 'reminder_days', 'type']
 
 
 class InsightSerializer(serializers.ModelSerializer):
