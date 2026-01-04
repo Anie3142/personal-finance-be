@@ -457,6 +457,16 @@ class MonthlyReportView(views.APIView):
             amount=Sum('amount')
         )
         
+        # Helper to format category spending
+        spending_formatted = []
+        for item in spending_by_cat:
+            spending_formatted.append({
+                'category_name': item['category__name'],
+                'category_color': item['category__color'],
+                'amount': float(item['amount']),
+                'percentage': float(item['amount'] / expenses * 100) if expenses > 0 else 0
+            })
+
         return Response({
             'summary': {
                 'total_income': float(income),
@@ -464,7 +474,7 @@ class MonthlyReportView(views.APIView):
                 'net': float(income - expenses),
                 'savings_rate': float((income - expenses) / income * 100) if income else 0
             },
-            'spending_by_category': list(spending_by_cat),
+            'spending_by_category': spending_formatted,
             'income_by_source': [],
             'top_merchants': [],
             'budget_performance': [],

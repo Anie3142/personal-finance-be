@@ -15,11 +15,11 @@ class DevAuthentication(authentication.BaseAuthentication):
     def authenticate(self, request):
         # Get or create the test user
         try:
-            user = User.objects.get(email='test@nairatrack.com')
+            user = User.objects.get(email='test@example.com')
         except User.DoesNotExist:
             # Create test user if it doesn't exist
             user = User.objects.create_user(
-                email='test@nairatrack.com',
+                email='test@example.com',
                 username='testuser',
                 password='testpassword123',
                 first_name='Test',

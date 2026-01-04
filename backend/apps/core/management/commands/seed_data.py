@@ -23,8 +23,12 @@ class Command(BaseCommand):
         parser.add_argument(
             '--email',
             type=str,
-            default='test@example.com',
-            help='Email for the test user'
+            help='Email for the user'
+        )
+        parser.add_argument(
+            '--auth0_id',
+            type=str,
+            help='Auth0 ID for the user'
         )
         parser.add_argument(
             '--clear',
@@ -33,25 +37,43 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        email = options['email']
+        email = options.get('email')
+        auth0_id = options.get('auth0_id')
+
+        if not email and not auth0_id:
+            # Default to test user if nothing provided
+            email = 'test@example.com'
         
-        # Create or get test user
-        user, created = User.objects.get_or_create(
-            email=email,
-            defaults={
-                'username': email.split('@')[0],
-                'first_name': 'Test',
-                'last_name': 'User',
-                'currency': 'NGN',
-                'timezone': 'Africa/Lagos',
-            }
-        )
-        if created:
-            user.set_password('testpassword123')
-            user.save()
-            self.stdout.write(self.style.SUCCESS(f'Created test user: {email}'))
-        else:
-            self.stdout.write(f'Using existing user: {email}')
+        user = None
+        if auth0_id:
+            try:
+                user = User.objects.get(auth0_id=auth0_id)
+                self.stdout.write(f'Found user by Auth0 ID: {auth0_id}')
+            except User.DoesNotExist:
+                pass
+        
+        if not user and email:
+            # Create or get user by email
+            user, created = User.objects.get_or_create(
+                email=email,
+                defaults={
+                    'username': email.split('@')[0],
+                    'first_name': 'Test',
+                    'last_name': 'User',
+                    'currency': 'NGN',
+                    'timezone': 'Africa/Lagos',
+                }
+            )
+            if created:
+                user.set_password('testpassword123')
+                user.save()
+                self.stdout.write(self.style.SUCCESS(f'Created test user: {email}'))
+            else:
+                self.stdout.write(f'Using existing user: {email}')
+        
+        if not user:
+             self.stdout.write(self.style.ERROR('User not found and could not be created'))
+             return
 
         if options['clear']:
             self.stdout.write('Clearing existing data...')
